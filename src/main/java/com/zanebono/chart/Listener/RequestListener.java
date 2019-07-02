@@ -9,7 +9,6 @@ import javax.servlet.http.HttpServletRequest;
 
 
 
-@WebListener
 public class RequestListener implements ServletRequestListener {
     public void requestInitialized(ServletRequestEvent sre)  {
         System.out.println("监听器启动");

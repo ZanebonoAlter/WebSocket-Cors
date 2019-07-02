@@ -1,6 +1,7 @@
 package com.zanebono.chart.ServiceImpl;
 
 import com.zanebono.chart.Dao.IRecordDao;
+import com.zanebono.chart.Mapper.RecordMapper;
 import com.zanebono.chart.Model.Chart_Record;
 import com.zanebono.chart.Service.SendService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,8 @@ import java.util.Calendar;
 public class SendServiceImpl implements SendService {
     @Autowired
     private IRecordDao iRecordDao;
+    @Autowired
+    private RecordMapper recordMapper;
     @Override
     public String insertRecord(String username,String decription) {
         Chart_Record cr = new Chart_Record();
@@ -22,7 +25,7 @@ public class SendServiceImpl implements SendService {
         if(username.equals("")||username.equals(null)){
             return "用户登录已过期";
         }
-        if(this.iRecordDao.insert(cr)>0){
+        if(this.recordMapper.insert(cr)>0){
             return "插入成功";
         }
         return "插入失败";

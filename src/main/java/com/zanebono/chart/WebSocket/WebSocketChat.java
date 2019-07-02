@@ -1,5 +1,8 @@
 package com.zanebono.chart.WebSocket;
 
+import com.zanebono.chart.Service.LoginService;
+import com.zanebono.chart.Service.SendService;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 import javax.servlet.http.HttpSession;
@@ -19,6 +22,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
 @ServerEndpoint(value="/websocket" ,configurator=GetHttpSessionConfigurator.class)//得到httpSession
 @Component
 public class WebSocketChat {
+    //容器
+    private static ApplicationContext applicationContext;
     //静态变量，用来记录当前在线连接数。应该把它设计成线程安全的。
     private static int onlineCount = 0;
 
@@ -54,18 +59,47 @@ public class WebSocketChat {
         else {
             //新增的登陆冲突判断
             this.JudgeOnline(httpSession);
-            webSocketSet.add(this);     //加入set中
             this.username=(String) this.httpSession.getAttribute("username");//保存用户名
+            this.changeOnline();//改变在线
+            webSocketSet.add(this);     //加入set中
+            //发送新连接消息，调用获取在线用户方法
+            for(WebSocketChat item: webSocketSet){
+                try {
+                    item.sendMessage("text_message:"+"新用户加入");
+                } catch (IOException e) {
+                    e.printStackTrace(); continue;
+                }
+            }
         }
     }
-
+    public void changeOnline(){
+        LoginService loginService =  applicationContext.getBean(LoginService.class);
+        loginService.ChangeOnline(this.username);
+//        LoginService loginService = SpringContextUtils.getBean("LoginService");
+//        loginService.ChangeOnline(this.username);
+    }
+    public void changeOffline(){
+        LoginService loginService = applicationContext.getBean(LoginService.class);
+        loginService.ChangeOffline(this.username);
+//        LoginService loginService = SpringContextUtils.getBean("LoginService");
+//        loginService.ChangeOffline(this.username);
+    }
     /**
      * 连接关闭调用的方法
      */
     //客户端主动断开
     @OnClose
     public void onClose(){
+        this.changeOffline();//用户离线
         webSocketSet.remove(this);  //从set中删除
+        //发送连接断开消息，调用获取在线用户方法
+        for(WebSocketChat item: webSocketSet){
+            try {
+                item.sendMessage("text_message:"+"一个用户断开");
+            } catch (IOException e) {
+                e.printStackTrace(); continue;
+            }
+        }
         subOnlineCount();           //在线数减1
         System.out.println("有一连接关闭！当前在线人数为" + getOnlineCount());
     }
@@ -73,7 +107,7 @@ public class WebSocketChat {
     public void activeOnClose(String description){
         //尝试关闭连接
         try {
-            this.sendMessage(description);
+            this.sendMessage("text_message:"+description);
             this.session.close();//会触发上面的onclose注解方法
         } catch (IOException e) {
             e.printStackTrace();
@@ -90,7 +124,9 @@ public class WebSocketChat {
         //获得消息发来时间
         SimpleDateFormat sd = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         String time = sd.format(new Date());
-
+    //解决了容器问题，这里可以直接调用Service 方法写入数据库
+   //     SendService sendService = applicationContext.getBean(SendService.class);
+   //     sendService.insertRecord(this.username,message);
         System.out.println("来自客户端的消息:" + message);
 //        //替换表情
 //        message = replaceImage(message);
@@ -99,12 +135,31 @@ public class WebSocketChat {
 //        if(name==null)
 //            this.activeOnClose("用户名丢失");//缺少用户名的断开
     //因为将username保存到了对象中，因此放弃了HttpSession
-        //群发消息
-        for(WebSocketChat item: webSocketSet){
-            try {
-                item.sendMessage(this.username+" "+time+"</br>"+message);
-            } catch (IOException e) {
-                e.printStackTrace(); continue;
+
+        //如果是text_message,则群发消息
+        //如果是心跳包就不发
+        if(message.equals("1")){
+
+        }else{
+            if(message.indexOf("text_message:")!=-1){
+                for(WebSocketChat item: webSocketSet){
+                    try {
+                        item.sendMessage(message+this.username+" "+time+"</br>");
+                    } catch (IOException e) {
+                        e.printStackTrace(); continue;
+                    }
+                }
+            }else{//信令传输，绝壁不能传给自己，否则会状态出错
+                //另外数据为json格式，不做修改
+                for(WebSocketChat item: webSocketSet){
+                    try {
+                        if(item!=this) {//不是自己的话就传输
+                            item.sendMessage(message);
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace(); continue;
+                    }
+                }
             }
         }
     }
@@ -158,5 +213,8 @@ public class WebSocketChat {
                 webSocketChat.activeOnClose("重复登录");
             }
         }
+    }
+    public static void setApplicationContext(ApplicationContext Context){
+        applicationContext=Context;
     }
 }

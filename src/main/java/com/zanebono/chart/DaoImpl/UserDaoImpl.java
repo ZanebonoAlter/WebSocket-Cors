@@ -28,4 +28,27 @@ public class UserDaoImpl implements IUserDao {
         List<User> users = jdbcTemplate.query("select * from user",new BeanPropertyRowMapper(User.class));
         return users;
     }
+
+    @Override
+    public List<User> selectOnlineUser() {
+        List<User> users = jdbcTemplate.query("select * from user where status=?",new Object[]{"在线"},new BeanPropertyRowMapper(User.class));
+        return users;
+    }
+
+    @Override
+    public void changeOnline(String username) {
+        this.jdbcTemplate.update("update user set status = '在线' where username = ?",username);
+    }
+    @Override
+    public void changeOffline(String username) {
+        this.jdbcTemplate.update("update user set status = '离线' where username = ?",username);
+    }
+
+    @Override
+    public User selectByName(String username) {
+        List<User> users = jdbcTemplate.query("select * from user where username=?",new Object[]{"username"},new BeanPropertyRowMapper(User.class));
+        if(users.size()>0)
+            return users.get(0);
+        return null;
+    }
 }
